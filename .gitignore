@@ -1,0 +1,11 @@
+# Local configuration overrides (never commit actual IDs or credentials)
+config.local.js
+secrets.js
+.env
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
