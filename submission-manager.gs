@@ -1,11 +1,11 @@
 /**** Configuration ****/
 /* Column assignments:
-   D  = School name
+   D  = Organisation name
    AB = 申込書A 完了日（締切1）
    AC = 申込書B 完了日（締切2）
    AD = 申込書A 完了状況（完了語で判定）
    AE = 申込書B 完了状況（完了語で判定）
-   AF = Per-school input sheet URL (submission management book URL)
+   AF = Per-organisation input sheet URL (submission management book URL)
    AG = Data storage drive URL (parent folder URL)
    AH~AQ = Contact emails (variable number of recipients)
 */
@@ -13,18 +13,18 @@ const CFG = {
   MASTER_TAB_NAME:   'Master(完成版)',
   MASTER_SHEET_NAME: 'Master(完成版)',
 
-  // Per-school book common settings
-  SCHOOL_TAB_NAME:   '提出管理シート',
+  // Per-organisation book common settings
+  ORGANISATION_TAB_NAME:   '提出管理シート',
   FORM_A_TAB_NAME:   '申込書A',
 
   // Master column definitions
   MASTER_COL: {
-    SCHOOL:          'D',
+    ORGANISATION:    'D',
     FORM1_DEADLINE:  'AB',  // 申込書A 完了日（締切1）
     FORM2_DEADLINE:  'AC',  // 申込書B 完了日（締切2）
     STATUS1:         'AD',  // 申込書A 完了状況
     STATUS2:         'AE',  // 申込書B 完了状況
-    SCHOOL_BOOK_URL: 'AF',  // Per-school submission management book URL
+    ORGANISATION_BOOK_URL: 'AF',  // Per-organisation submission management book URL
     FOLDER_URL:      'AG',  // Parent folder URL
     MAIL_FROM:       'AH',  // Mail TO start (first)
     MAIL_TO:         'AJ',  // Mail CC end (contact list ③)
@@ -32,8 +32,8 @@ const CFG = {
     REMIND_LOG2:     'AV'   // Form 2 reminder send log
   },
 
-  // Per-school submission management sheet (fixed)
-  SCHOOL_COL: {
+  // Per-organisation submission management sheet (fixed)
+  ORGANISATION_COL: {
     NAME:         'A',
     DOC_URL:      'B',  // URL / URL|Sheet!Range
     DUE:          'C',
@@ -54,15 +54,15 @@ const K = {
   MANAGED_PREFIX: 'managed:'  // Record prefix for "already notified by this script"
 };
 
-// Optional: set a fixed school book ID to process (leave empty for normal operation)
-const SCHOOL_BOOK_ID = '';
+// Optional: set a fixed organisation book ID to process (leave empty for normal operation)
+const ORGANISATION_BOOK_ID = '';
 
 // ===== Admin Master link (used for Slack button) =====
 const MASTER_SHEET_LINK = 'YOUR_MASTER_SHEET_LINK';
 
 // ===== Notification timing =====
-// School email: pre-deadline [14,7,5,3] / overdue [-1,-2,-3,-4]
-// Admin Slack: pre-deadline [5,3,1] (batch) / overdue [-1,-2,-3,-4] (per school)
+// Organisation email: pre-deadline [14,7,5,3] / overdue [-1,-2,-3,-4]
+// Admin Slack: pre-deadline [5,3,1] (batch) / overdue [-1,-2,-3,-4] (per organisation)
 const PRE_EMAIL_OFFSETS   = [14, 7, 5, 3];
 const POST_EMAIL_OFFSETS  = [-1, -2, -3, -4];
 const PRE_ADMIN_OFFSETS   = [5, 3, 1];
@@ -124,9 +124,9 @@ function onOpen() {
     .addSubMenu(
       ui.createMenu('提出管理')
         .addItem('PDF化してF/G列に反映（単一ブック／このブック）', 'exportAllDocsToPdf')
-        .addItem('（この行だけ）PDF化して各校シートに反映', 'exportSelectedSchoolDocsToPdf')
-        .addItem('（全校）PDF化（スマート：不足・更新のみ）', 'exportAllSchoolsDocsSmart_')
-        .addItem('（全校）PDF化（強制フル再生成）', 'exportAllSchoolsDocsForce_')
+        .addItem('（この行だけ）PDF化して各組織シートに反映', 'exportSelectedOrganisationDocsToPdf')
+        .addItem('（全組織）PDF化（スマート：不足・更新のみ）', 'exportAllOrganisationsDocsSmart_')
+        .addItem('（全組織）PDF化（強制フル再生成）', 'exportAllOrganisationsDocsForce_')
     )
     .addSubMenu(
       ui.createMenu('リマインド')
@@ -236,8 +236,8 @@ function onEdit(e) {
     sh.getRange(row, 2).setValue(now);
     sh.getRange(row, 3).setValue(actorDisplay || fallbackUser || '-');
 
-    const mgmt = SpreadsheetApp.getActive().getSheetByName(CFG.SCHOOL_TAB_NAME);
-    if (mgmt) mgmt.getRange(`${CFG.SCHOOL_COL.LAST_UPDATED}2`).setValue(now);
+    const mgmt = SpreadsheetApp.getActive().getSheetByName(CFG.ORGANISATION_TAB_NAME);
+    if (mgmt) mgmt.getRange(`${CFG.ORGANISATION_COL.LAST_UPDATED}2`).setValue(now);
     return;
   }
 
@@ -352,14 +352,14 @@ function syncPermForRow_capped_(sh, r, budget) {
   const noticeList = toNotifyBase.filter(e => !addFailures.some(f => f.email === e));
   if (noticeList.length > 0) {
     try {
-      const school       = sh.getRange(`${CFG.MASTER_COL.SCHOOL}${r}`).getDisplayValue() || '(学校名未設定)';
-      const bookUrl      = (sh.getRange(`${CFG.MASTER_COL.SCHOOL_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
+      const organisation = sh.getRange(`${CFG.MASTER_COL.ORGANISATION}${r}`).getDisplayValue() || '(組織名未設定)';
+      const bookUrl      = (sh.getRange(`${CFG.MASTER_COL.ORGANISATION_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
       const form1DueDisp = (sh.getRange(`${CFG.MASTER_COL.FORM1_DEADLINE}${r}`).getDisplayValue() || '').toString();
       const form2DueDisp = (sh.getRange(`${CFG.MASTER_COL.FORM2_DEADLINE}${r}`).getDisplayValue() || '').toString();
 
       sendGrantNoticeCapped_(
         noticeList,
-        { school, folderUrl, bookUrl, form1DueDisp, form2DueDisp },
+        { organisation, folderUrl, bookUrl, form1DueDisp, form2DueDisp },
         sh, r
       );
       noticeList.forEach(e => managed.add(e));
@@ -487,12 +487,12 @@ function syncPermForRow_(sh, r) {
 
   if (noticeList.length > 0) {
     try {
-      const school       = sh.getRange(`${CFG.MASTER_COL.SCHOOL}${r}`).getDisplayValue() || '(学校名未設定)';
-      const bookUrl      = (sh.getRange(`${CFG.MASTER_COL.SCHOOL_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
+      const organisation = sh.getRange(`${CFG.MASTER_COL.ORGANISATION}${r}`).getDisplayValue() || '(組織名未設定)';
+      const bookUrl      = (sh.getRange(`${CFG.MASTER_COL.ORGANISATION_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
       const form1DueDisp = (sh.getRange(`${CFG.MASTER_COL.FORM1_DEADLINE}${r}`).getDisplayValue() || '').toString();
       const form2DueDisp = (sh.getRange(`${CFG.MASTER_COL.FORM2_DEADLINE}${r}`).getDisplayValue() || '').toString();
 
-      sendGrantNotice_(noticeList, { school, folderUrl, bookUrl, form1DueDisp, form2DueDisp });
+      sendGrantNotice_(noticeList, { organisation, folderUrl, bookUrl, form1DueDisp, form2DueDisp });
 
       noticeList.forEach(e => managed.add(e));
       props.setProperty(managedKey, JSON.stringify(Array.from(managed)));
@@ -532,31 +532,31 @@ function tryGetLastActorDisplayName_(fileId) {
 
 /**** PDF Export ****/
 function exportAllDocsToPdf() {
-  const targetSS = SCHOOL_BOOK_ID ? SpreadsheetApp.openById(SCHOOL_BOOK_ID) : SpreadsheetApp.getActive();
-  processOneSchoolSheet_(targetSS);
+  const targetSS = ORGANISATION_BOOK_ID ? SpreadsheetApp.openById(ORGANISATION_BOOK_ID) : SpreadsheetApp.getActive();
+  processOneOrganisationSheet_(targetSS);
   SpreadsheetApp.getActive().toast('PDF化を完了しました');
 }
 
-function exportSelectedSchoolDocsToPdf() {
+function exportSelectedOrganisationDocsToPdf() {
   const sh = getMasterTab_();
   const a = sh.getActiveCell();
   if (!a) { SpreadsheetApp.getActive().toast('セルを選択してください'); return; }
   const r = a.getRow();
   if (r < 2) { SpreadsheetApp.getActive().toast('データ行を選択してください'); return; }
 
-  const url = (sh.getRange(`${CFG.MASTER_COL.SCHOOL_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
-  if (!url) { SpreadsheetApp.getActive().toast('この行の各校ブックURL（AF）が空です'); return; }
+  const url = (sh.getRange(`${CFG.MASTER_COL.ORGANISATION_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
+  if (!url) { SpreadsheetApp.getActive().toast('この行の各組織ブックURL（AF）が空です'); return; }
 
   const id = extractId_(url);
-  if (!id) { SpreadsheetApp.getActive().toast('各校ブックURLからIDを取得できませんでした'); return; }
+  if (!id) { SpreadsheetApp.getActive().toast('各組織ブックURLからIDを取得できませんでした'); return; }
 
   const ss = SpreadsheetApp.openById(id);
-  processOneSchoolSheet_(ss);
+  processOneOrganisationSheet_(ss);
   SpreadsheetApp.getActive().toast(`PDF化完了：${ss.getName()}`);
 }
 
-function processOneSchoolSheet_(targetSS) {
-  const tab = targetSS.getSheetByName(CFG.SCHOOL_TAB_NAME);
+function processOneOrganisationSheet_(targetSS) {
+  const tab = targetSS.getSheetByName(CFG.ORGANISATION_TAB_NAME);
   if (!tab) throw new Error(`提出管理シートが見つかりません（${targetSS.getName()}）`);
 
   const pIt = DriveApp.getFileById(targetSS.getId()).getParents();
@@ -565,7 +565,7 @@ function processOneSchoolSheet_(targetSS) {
 
   const lastRow = tab.getLastRow();
   for (let r = 2; r <= lastRow; r++) {
-    const cell = tab.getRange(`${CFG.SCHOOL_COL.DOC_URL}${r}`);
+    const cell = tab.getRange(`${CFG.ORGANISATION_COL.DOC_URL}${r}`);
     const cellText = (cell.getDisplayValue() || '').toString().trim();
     const cellUrl  = getUrlFromCell_(cell);
     const target   = (cellUrl || cellText).trim();
@@ -580,20 +580,20 @@ function processOneSchoolSheet_(targetSS) {
     const mime = DriveApp.getFileById(docId).getMimeType();
     const pdfBlob = makePdfBlobUniversal_(docId, mime, rangeA1);
 
-    const schoolName = targetSS.getName();
-    const formLabel  = (tab.getRange(`${CFG.SCHOOL_COL.NAME}${r}`).getDisplayValue() || '提出書類');
+    const organisationName = targetSS.getName();
+    const formLabel  = (tab.getRange(`${CFG.ORGANISATION_COL.NAME}${r}`).getDisplayValue() || '提出書類');
     const ymd = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmm');
     const safe = s => (s || '').replace(/[\\/:*?"<>|]/g, '');
-    const name = `${safe(schoolName)}_${safe(formLabel)}_${ymd}.pdf`;
+    const name = `${safe(organisationName)}_${safe(formLabel)}_${ymd}.pdf`;
 
     const file = parentFolder.createFile(pdfBlob).setName(name);
-    tab.getRange(`${CFG.SCHOOL_COL.PDF_URL}${r}`).setValue(file.getUrl());
-    tab.getRange(`${CFG.SCHOOL_COL.LAST_UPDATED}${r}`).setValue(new Date());
+    tab.getRange(`${CFG.ORGANISATION_COL.PDF_URL}${r}`).setValue(file.getUrl());
+    tab.getRange(`${CFG.ORGANISATION_COL.LAST_UPDATED}${r}`).setValue(new Date());
   }
 }
 
 function deleteExistingPdfIfAny_(tab, row) {
-  const url = (tab.getRange(`${CFG.SCHOOL_COL.PDF_URL}${row}`).getDisplayValue() || '').toString().trim();
+  const url = (tab.getRange(`${CFG.ORGANISATION_COL.PDF_URL}${row}`).getDisplayValue() || '').toString().trim();
   const id = extractId_(url);
   if (!id) return;
   try {
@@ -693,8 +693,8 @@ function dailyReminder_() {
   while (r <= last && sent < REMINDER_CAP.MAX_SENDS_PER_RUN) {
     scanned++;
 
-    const school  = sh.getRange(`${CFG.MASTER_COL.SCHOOL}${r}`).getDisplayValue() || '(学校名未設定)';
-    const bookUrl = (sh.getRange(`${CFG.MASTER_COL.SCHOOL_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
+    const organisation = sh.getRange(`${CFG.MASTER_COL.ORGANISATION}${r}`).getDisplayValue() || '(組織名未設定)';
+    const bookUrl = (sh.getRange(`${CFG.MASTER_COL.ORGANISATION_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
     const emails  = readRowEmails_(sh, r);
 
     if (emails.length) {
@@ -716,9 +716,9 @@ function dailyReminder_() {
         if (PRE_OFFSETS.includes(diff)) {
           if (alreadySentAtOffset_(sh, r, f.logCol, diff)) continue;
 
-          const subj = `【YOUR_PROGRAM_NAME】【${school}】${f.name} リマインド（締切まで残り${diff}日）`;
+          const subj = `【YOUR_PROGRAM_NAME】【${organisation}】${f.name} リマインド（締切まで残り${diff}日）`;
           const html =
-            `${school} ご担当者さま<br><br>` +
+            `${organisation} ご担当者さま<br><br>` +
             `標記の件につきまして、進捗状況はいかがでしょうか。<br>` +
             `本メールと行き違いで既にご対応済みの場合は、何卒ご容赦ください。<br>` +
             `未完了の方におかれましては、<b>【${dueYmd}】</b>までに作業をお願いいたします。<br><br>` +
@@ -798,10 +798,10 @@ function sendSlack_(text, blocks) {
 
 function exportOneRowByMaster_(row) {
   const sh = getMasterTab_();
-  const url = (sh.getRange(`${CFG.MASTER_COL.SCHOOL_BOOK_URL}${row}`).getDisplayValue() || '').toString().trim();
+  const url = (sh.getRange(`${CFG.MASTER_COL.ORGANISATION_BOOK_URL}${row}`).getDisplayValue() || '').toString().trim();
   const id = extractId_(url); if (!id) return false;
   const ss = SpreadsheetApp.openById(id);
-  processOneSchoolSheet_(ss);
+  processOneOrganisationSheet_(ss);
   return true;
 }
 
@@ -813,7 +813,7 @@ function checkCompletionAndNotify_() {
 
   let sent = 0;
   for (let r = 2; r <= last; r++) {
-    const school = sh.getRange(`${CFG.MASTER_COL.SCHOOL}${r}`).getDisplayValue() || '(学校名未設定)';
+    const organisation = sh.getRange(`${CFG.MASTER_COL.ORGANISATION}${r}`).getDisplayValue() || '(組織名未設定)';
     const s1 = sh.getRange(`${CFG.MASTER_COL.STATUS1}${r}`).getDisplayValue();
     const s2 = sh.getRange(`${CFG.MASTER_COL.STATUS2}${r}`).getDisplayValue();
 
@@ -830,9 +830,9 @@ function checkCompletionAndNotify_() {
       const d2 = sh.getRange(`${CFG.MASTER_COL.FORM2_DEADLINE}${r}`).getDisplayValue() || '';
 
       sendSlack_(
-        `${school} の記入が完了しました`,
+        `${organisation} の記入が完了しました`,
         [
-          { type: "section", text: { type: "mrkdwn", text: `✅ *${school}* の記入が完了しました` } },
+          { type: "section", text: { type: "mrkdwn", text: `✅ *${organisation}* の記入が完了しました` } },
           { type: "section", text: { type: "mrkdwn", text: `• *${h1}*\n• *${h2}*` } },
           { type: "section", fields: [
             { type: "mrkdwn", text: `*最終更新（申込書A 完了日）*\n${d1 || '-'}` },
@@ -853,23 +853,23 @@ function job_checkCompletionAndNotify() {
   checkCompletionAndNotify_();
 }
 
-function job_exportAllSchoolsDocsSmart() {
+function job_exportAllOrganisationsDocsSmart() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;
-  try { exportAllSchoolsDocsSmart_(); } finally { lock.releaseLock(); }
+  try { exportAllOrganisationsDocsSmart_(); } finally { lock.releaseLock(); }
 }
 
 /**** Smart bulk PDF export & Force full regeneration ****/
-function exportAllSchoolsDocsSmart_() {
+function exportAllOrganisationsDocsSmart_() {
   const master = getMasterTab_();
   const last = master.getLastRow();
   let done = 0, skip = 0;
 
   for (let r = 2; r <= last; r++) {
-    const url = (master.getRange(`${CFG.MASTER_COL.SCHOOL_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
+    const url = (master.getRange(`${CFG.MASTER_COL.ORGANISATION_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
     const id  = extractId_(url); if (!id) { skip++; continue; }
     const ss  = SpreadsheetApp.openById(id);
-    const tab = ss.getSheetByName(CFG.SCHOOL_TAB_NAME); if (!tab) { skip++; continue; }
+    const tab = ss.getSheetByName(CFG.ORGANISATION_TAB_NAME); if (!tab) { skip++; continue; }
 
     const pIt = DriveApp.getFileById(ss.getId()).getParents();
     if (!pIt.hasNext()) { skip++; continue; }
@@ -877,13 +877,13 @@ function exportAllSchoolsDocsSmart_() {
 
     const lastRow = tab.getLastRow();
     for (let i = 2; i <= lastRow; i++) {
-      const lastPdf = tab.getRange(`${CFG.SCHOOL_COL.LAST_UPDATED}${i}`).getValue();
+      const lastPdf = tab.getRange(`${CFG.ORGANISATION_COL.LAST_UPDATED}${i}`).getValue();
       const need = shouldRebuildRow_(tab, i, lastPdf instanceof Date ? lastPdf : null);
       if (!need) { skip++; continue; }
 
       deleteExistingPdfIfAny_(tab, i);
 
-      const cell   = tab.getRange(`${CFG.SCHOOL_COL.DOC_URL}${i}`);
+      const cell   = tab.getRange(`${CFG.ORGANISATION_COL.DOC_URL}${i}`);
       const text   = (cell.getDisplayValue() || '').toString().trim();
       const cellUrl= getUrlFromCell_(cell);
       const target = (cellUrl || text).trim();
@@ -894,15 +894,15 @@ function exportAllSchoolsDocsSmart_() {
       const mime = DriveApp.getFileById(docId).getMimeType();
       const pdfBlob = makePdfBlobUniversal_(docId, mime, rangeA1);
 
-      const schoolName = ss.getName();
-      const formLabel  = (tab.getRange(`${CFG.SCHOOL_COL.NAME}${i}`).getDisplayValue() || '提出書類');
+      const organisationName = ss.getName();
+      const formLabel  = (tab.getRange(`${CFG.ORGANISATION_COL.NAME}${i}`).getDisplayValue() || '提出書類');
       const ymd = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmm');
       const safe = s => (s || '').replace(/[\\/:*?"<>|]/g, '');
-      const name = `${safe(schoolName)}_${safe(formLabel)}_${ymd}.pdf`;
+      const name = `${safe(organisationName)}_${safe(formLabel)}_${ymd}.pdf`;
 
       const file = parentFolder.createFile(pdfBlob).setName(name);
-      tab.getRange(`${CFG.SCHOOL_COL.PDF_URL}${i}`).setValue(file.getUrl());
-      tab.getRange(`${CFG.SCHOOL_COL.LAST_UPDATED}${i}`).setValue(new Date());
+      tab.getRange(`${CFG.ORGANISATION_COL.PDF_URL}${i}`).setValue(file.getUrl());
+      tab.getRange(`${CFG.ORGANISATION_COL.LAST_UPDATED}${i}`).setValue(new Date());
       done++;
     }
   }
@@ -910,7 +910,7 @@ function exportAllSchoolsDocsSmart_() {
 }
 
 function shouldRebuildRow_(tab, row, lastPdfUpdated) {
-  const cell = tab.getRange(`${CFG.SCHOOL_COL.DOC_URL}${row}`);
+  const cell = tab.getRange(`${CFG.ORGANISATION_COL.DOC_URL}${row}`);
   const cellText = (cell.getDisplayValue() || '').toString().trim();
   const cellUrl  = getUrlFromCell_(cell);
   const target   = (cellUrl || cellText).trim();
@@ -926,16 +926,16 @@ function shouldRebuildRow_(tab, row, lastPdfUpdated) {
   }
 }
 
-function exportAllSchoolsDocsForce_() {
+function exportAllOrganisationsDocsForce_() {
   const master = getMasterTab_();
   const last = master.getLastRow();
   let done = 0;
 
   for (let r = 2; r <= last; r++) {
-    const url = (master.getRange(`${CFG.MASTER_COL.SCHOOL_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
+    const url = (master.getRange(`${CFG.MASTER_COL.ORGANISATION_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
     const id  = extractId_(url); if (!id) continue;
     const ss  = SpreadsheetApp.openById(id);
-    const tab = ss.getSheetByName(CFG.SCHOOL_TAB_NAME); if (!tab) continue;
+    const tab = ss.getSheetByName(CFG.ORGANISATION_TAB_NAME); if (!tab) continue;
 
     const pIt = DriveApp.getFileById(ss.getId()).getParents();
     if (!pIt.hasNext()) continue;
@@ -945,7 +945,7 @@ function exportAllSchoolsDocsForce_() {
     for (let i = 2; i <= lastRow; i++) {
       deleteExistingPdfIfAny_(tab, i);
 
-      const cell   = tab.getRange(`${CFG.SCHOOL_COL.DOC_URL}${i}`);
+      const cell   = tab.getRange(`${CFG.ORGANISATION_COL.DOC_URL}${i}`);
       const text   = (cell.getDisplayValue() || '').toString().trim();
       const cellUrl= getUrlFromCell_(cell);
       const target = (cellUrl || text).trim();
@@ -957,15 +957,15 @@ function exportAllSchoolsDocsForce_() {
       const mime = DriveApp.getFileById(docId).getMimeType();
       const pdfBlob = makePdfBlobUniversal_(docId, mime, rangeA1);
 
-      const schoolName = ss.getName();
-      const formLabel  = (tab.getRange(`${CFG.SCHOOL_COL.NAME}${i}`).getDisplayValue() || '提出書類');
+      const organisationName = ss.getName();
+      const formLabel  = (tab.getRange(`${CFG.ORGANISATION_COL.NAME}${i}`).getDisplayValue() || '提出書類');
       const ymd = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmm');
       const safe = s => (s || '').replace(/[\\/:*?"<>|]/g, '');
-      const name = `${safe(schoolName)}_${safe(formLabel)}_${ymd}.pdf`;
+      const name = `${safe(organisationName)}_${safe(formLabel)}_${ymd}.pdf`;
 
       const file = parentFolder.createFile(pdfBlob).setName(name);
-      tab.getRange(`${CFG.SCHOOL_COL.PDF_URL}${i}`).setValue(file.getUrl());
-      tab.getRange(`${CFG.SCHOOL_COL.LAST_UPDATED}${i}`).setValue(new Date());
+      tab.getRange(`${CFG.ORGANISATION_COL.PDF_URL}${i}`).setValue(file.getUrl());
+      tab.getRange(`${CFG.ORGANISATION_COL.LAST_UPDATED}${i}`).setValue(new Date());
       done++;
     }
   }
@@ -1090,12 +1090,12 @@ function isDoneMark_(val) {
 function sendGrantNotice_(recipients, ctx) {
   if (!recipients || recipients.length === 0) return;
 
-  const subj = `【${ctx.school}】提出物管理用フォルダへのアクセス権を付与しました`;
+  const subj = `【${ctx.organisation}】提出物管理用フォルダへのアクセス権を付与しました`;
   const html =
-    `${ctx.school} ご担当者さま<br><br>` +
+    `${ctx.organisation} ご担当者さま<br><br>` +
     `提出物管理用のフォルダへのアクセス権を付与しました。<br>` +
     `▼提出用フォルダ：${ctx.folderUrl ? `<a href="${ctx.folderUrl}">${ctx.folderUrl}</a>` : '-' }<br>` +
-    `▼管理シート（各校ブック）：${ctx.bookUrl ? `<a href="${ctx.bookUrl}">${ctx.bookUrl}</a>` : '-' }<br>` +
+    `▼管理シート（各組織ブック）：${ctx.bookUrl ? `<a href="${ctx.bookUrl}">${ctx.bookUrl}</a>` : '-' }<br>` +
     `<br>` +
     `【締切の目安】<br>` +
     `・申込書A：${ctx.form1DueDisp || '-'}<br>` +
@@ -1183,19 +1183,19 @@ function sendGrantMailForRow_(sh, r, opt) {
     return { sent: false, errored: false, msg: `r=${r} 既に完了のためスキップ` };
   }
 
-  const school       = sh.getRange(`${CFG.MASTER_COL.SCHOOL}${r}`).getDisplayValue() || '(学校名未設定)';
+  const organisation = sh.getRange(`${CFG.MASTER_COL.ORGANISATION}${r}`).getDisplayValue() || '(組織名未設定)';
   const folderUrl    = (sh.getRange(`${CFG.MASTER_COL.FOLDER_URL}${r}`).getDisplayValue() || '').toString().trim();
-  const bookUrl      = (sh.getRange(`${CFG.MASTER_COL.SCHOOL_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
+  const bookUrl      = (sh.getRange(`${CFG.MASTER_COL.ORGANISATION_BOOK_URL}${r}`).getDisplayValue() || '').toString().trim();
   const form1DueDisp = (sh.getRange(`${CFG.MASTER_COL.FORM1_DEADLINE}${r}`).getDisplayValue() || '').toString();
   const form2DueDisp = (sh.getRange(`${CFG.MASTER_COL.FORM2_DEADLINE}${r}`).getDisplayValue() || '').toString();
-  const ctx = { school, folderUrl, bookUrl, form1DueDisp, form2DueDisp };
+  const ctx = { organisation, folderUrl, bookUrl, form1DueDisp, form2DueDisp };
 
-  const subj = `【${ctx.school}】提出物管理用フォルダへのアクセス権を付与しました`;
+  const subj = `【${ctx.organisation}】提出物管理用フォルダへのアクセス権を付与しました`;
   const html =
-    `${ctx.school} ご担当者さま<br><br>` +
+    `${ctx.organisation} ご担当者さま<br><br>` +
     `提出物管理用のフォルダへのアクセス権を付与しました。<br>` +
     `▼提出用フォルダ：${ctx.folderUrl ? `<a href="${ctx.folderUrl}">${ctx.folderUrl}</a>` : '-' }<br>` +
-    `▼管理シート（各校ブック）：${ctx.bookUrl ? `<a href="${ctx.bookUrl}">${ctx.bookUrl}</a>` : '-' }<br>` +
+    `▼管理シート（各組織ブック）：${ctx.bookUrl ? `<a href="${ctx.bookUrl}">${ctx.bookUrl}</a>` : '-' }<br>` +
     `<br>` +
     `【締切の目安】<br>` +
     `・申込書A：${ctx.form1DueDisp || '-'}<br>` +
@@ -1397,11 +1397,11 @@ function stopMasterPdfNow() {
 
   const killHandlers = [
     'exportAllDocsToPdf',
-    'exportSelectedSchoolDocsToPdf',
-    'exportAllSchoolsDocsSmart_',
-    'exportAllSchoolsDocsForce_',
+    'exportSelectedOrganisationDocsToPdf',
+    'exportAllOrganisationsDocsSmart_',
+    'exportAllOrganisationsDocsForce_',
     'checkCompletionAndNotify_',
-    'job_exportAllSchoolsDocsSmart'
+    'job_exportAllOrganisationsDocsSmart'
   ];
   ScriptApp.getProjectTriggers()
     .filter(t => killHandlers.includes(t.getHandlerFunction()))
@@ -1436,16 +1436,16 @@ function testReminder() {
 function testMailOnlyForMe() {
   const myEmail = 'your-email@example.com'; // Replace with your email address
 
-  const school   = 'テスト校';
+  const organisation = 'テスト組織';
   const formName = '申込書B';
   const dueYmd   = '2026-02-28';
   const status   = '未完了';
   const diff     = '3';
   const bookUrl  = 'YOUR_TEST_SPREADSHEET_URL';
 
-  const subj = `【YOUR_PROGRAM_NAME】【${school}】${formName} リマインド（締切まで残り${diff}日）`;
+  const subj = `【YOUR_PROGRAM_NAME】【${organisation}】${formName} リマインド（締切まで残り${diff}日）`;
   const html =
-    `${school} ご担当者さま<br><br>` +
+    `${organisation} ご担当者さま<br><br>` +
     `標記の件につきまして、進捗状況はいかがでしょうか。<br>` +
     `本メールと行き違いで既にご対応済みの場合は、何卒ご容赦ください。<br>` +
     `未完了の方におかれましては、<b>【${dueYmd}】</b>までに作業をお願いいたします。<br><br>` +
