@@ -1,140 +1,145 @@
 # gas-business-automation
 
-A Google Apps Script (GAS) toolkit for automating school submission management workflows — including Drive permission sync, deadline reminder emails, PDF generation, and Slack completion notifications.
+Google Apps Script（GAS）を使った申請書提出管理の業務自動化ツールキットです。
+Driveフォルダの権限同期、締切リマインドメール、PDF自動生成、Slack完了通知などを、スプレッドシートと連携して自動化します。
 
 ---
 
-## Features
+## 機能一覧
 
-| Feature | Description |
-|---------|-------------|
-| **Drive Permission Sync** | Automatically grants/revokes folder access based on email columns in the master sheet |
-| **Grant Notification Email** | Sends an onboarding email to newly added recipients |
-| **Deadline Reminder Email** | Sends reminder emails 4 days and 1 day before each form deadline |
-| **PDF Auto-generation** | Converts submitted documents to PDF and stores them in Drive |
-| **Completion Detection** | Detects when all forms are complete and notifies via Slack |
-| **Edit Log** | Automatically records spreadsheet edits in a log sheet |
+| 機能 | 説明 |
+|------|------|
+| **Drive権限の自動同期** | マスターシートのメール列をもとに、フォルダへのアクセス権を自動付与・削除 |
+| **権限付与通知メール** | 新規追加された担当者へ案内メールを自動送信 |
+| **締切リマインドメール** | 申込書Aおよび申込書Bの締切4日前・1日前にリマインドメールを自動送信 |
+| **PDF自動生成** | 提出ドキュメントをPDF化してDriveフォルダに格納 |
+| **完了検知・Slack通知** | すべての申込書が完了状態になったタイミングでSlackへ通知 |
+| **編集ログ記録** | スプレッドシートの編集履歴をログシートに自動記録 |
 
 ---
 
-## System Overview
+## 処理フロー
 
 ```
-Master Spreadsheet (Master(完成版))
+マスタースプレッドシート
         │
-        ▼ [Every 5 min trigger]
-  syncAllPermissions
-        │  Reads: Folder URL (col AG) + Emails (col AH~AJ)
+        ▼ [5分トリガー]
+  syncAllPermissions（権限同期）
+        │  フォルダURL（AG列）＋メールアドレス（AH〜AJ列）を読み取り
         ▼
-  Grant Drive folder access
-        │  First-time recipients only
+  Driveフォルダへのアクセス権を付与・削除
+        │  初回追加のアドレスのみ
         ▼
-  Send grant notification email (with Form 1 / Form 2 deadlines)
+  権限付与通知メール送信（申込書A・Bの締切日を記載）
         │
-        ▼ [Daily at 7:00 trigger]
-  dailyReminder_
-        │  d-4 / d-1 timing
+        ▼ [毎日7時トリガー]
+  dailyReminder_（リマインド）
+        │  締切4日前・1日前のタイミングで送信
         ▼
-  Send reminder emails → log to AU/AV columns
+  リマインドメール送信 → AU/AV列にログ記録
         │
-        ▼ [Every 15 min trigger]
-  checkCompletionAndNotify_
-        │  When col AD & AE both contain completion keywords
+        ▼ [15分トリガー]
+  checkCompletionAndNotify_（完了検知）
+        │  AD列・AE列の両方が完了状態になったら
         ▼
-  Auto-generate PDF → Slack notification
+  PDF自動生成 → Slack通知
 ```
 
 ---
 
-## Column Definitions (Master Sheet)
+## マスターシートの列定義
 
-| Column | Content |
-|--------|---------|
-| D | School name |
-| AB | Form 1 deadline date |
-| AC | Form 2 deadline date |
-| AD | Form 1 completion status |
-| AE | Form 2 completion status |
-| AF | Per-school submission book URL |
-| AG | Parent Drive folder URL |
-| AH~AJ | Contact email addresses |
-| AK | Send status (完了 / エラー) |
-| AL | Send metadata log |
-| AU | Form 1 reminder send log |
-| AV | Form 2 reminder send log |
-| AO~AQ | Permission check results |
-
----
-
-## Setup
-
-### 1. Copy the script
-
-Open your master Google Spreadsheet → **Extensions > Apps Script**, paste the contents of `submission-manager.gs`.
-
-### 2. Replace placeholder values
-
-Search for the following placeholders and replace them with your actual values:
-
-| Placeholder | Location | Description |
-|-------------|----------|-------------|
-| `YOUR_MASTER_SPREADSHEET_ID` | Line ~100 | Your master spreadsheet ID (from the URL) |
-| `YOUR_MASTER_SHEET_LINK` | Line ~50 | Full URL of the master sheet (for Slack buttons) |
-| `YOUR_ORGANIZATION_NAME` | `SENDER.NAME` | Display name shown in sent emails |
-| `info@your-domain.jp` | Reminder email body | Your actual inquiry email address |
-
-### 3. Configure Slack (optional)
-
-Set `SLACK.WEBHOOK_URL` to your Slack Incoming Webhook URL to enable completion notifications.
-
-### 4. Enable required services
-
-In the Apps Script editor → **Services**, enable:
-- **Drive API** (for advanced permission checks including groups/domains)
-
-### 5. Run initial setup
-
-From the spreadsheet menu: **運用メニュー > 初期設定（認可）**
-
-### 6. Create triggers
-
-From the menu:
-- **運用メニュー > 権限 > 権限付与の定期同期（5分）** — starts permission sync
-- **運用メニュー > リマインド > 時間トリガー作成（毎日）** — starts daily reminders
-- **運用メニュー > リマインド > 完了検知トリガー作成（15分）** — starts completion detection
+| 列 | 内容 |
+|----|------|
+| D | 担当組織名 |
+| AB | 申込書A 締切日 |
+| AC | 申込書B 締切日 |
+| AD | 申込書A 完了状況 |
+| AE | 申込書B 完了状況 |
+| AF | 各担当者の提出管理ブックURL |
+| AG | 格納先Driveフォルダ URL |
+| AH〜AJ | 担当者メールアドレス |
+| AK | 送付ステータス（完了 / エラー） |
+| AL | 送付メタログ |
+| AU | 申込書A リマインド送付ログ |
+| AV | 申込書B リマインド送付ログ |
+| AO〜AQ | 権限チェック結果 |
 
 ---
 
-## Configuration Reference
+## セットアップ手順
+
+### 1. スクリプトをコピーする
+
+対象のGoogleスプレッドシートを開き、**拡張機能 > Apps Script** へ移動して、`submission-manager.gs` の内容を貼り付けます。
+
+### 2. プレースホルダーを自分の値に置き換える
+
+以下のプレースホルダーを検索し、実際の値に変更してください。
+
+| プレースホルダー | 場所 | 説明 |
+|-----------------|------|------|
+| `YOUR_MASTER_SPREADSHEET_ID` | 約100行目 | マスタースプレッドシートのID（URLから取得） |
+| `YOUR_MASTER_SHEET_LINK` | 約50行目 | マスターシートのフルURL（Slackボタン用） |
+| `YOUR_ORGANIZATION_NAME` | `SENDER.NAME` | メール差出人として表示する組織名 |
+| `YOUR_PROGRAM_NAME` | リマインドメール件名 | メール件名に表示するプログラム名 |
+| `info@your-domain.jp` | リマインドメール本文 | 問い合わせ先メールアドレス |
+
+### 3. Slack通知を設定する（任意）
+
+`SLACK.WEBHOOK_URL` に Slack の Incoming Webhook URL を設定すると、完了通知が届くようになります。
+
+### 4. 必要なサービスを有効化する
+
+Apps Scriptエディタ → **サービス** から以下を有効化してください。
+- **Drive API**（グループ・ドメイン共有を含む詳細な権限チェックに使用）
+
+### 5. 初期設定を実行する
+
+スプレッドシートのメニューから：**運用メニュー > 初期設定（認可）**
+
+### 6. トリガーを作成する
+
+メニューから以下を順番に実行します。
+
+| メニュー項目 | 説明 |
+|------------|------|
+| 運用メニュー > 権限 > 権限付与の定期同期（5分） | 権限同期の定期実行を開始 |
+| 運用メニュー > リマインド > 時間トリガー作成（毎日） | 毎日のリマインド送信を開始 |
+| 運用メニュー > リマインド > 完了検知トリガー作成（15分） | 完了検知を開始 |
+
+---
+
+## 主な設定値
 
 ```javascript
-// Reminder timing (days before deadline)
-const REMINDER_OFFSETS = [4, 1];  // Sends at d-4 and d-1
+// リマインドを送るタイミング（締切の何日前か）
+const REMINDER_OFFSETS = [4, 1];  // 4日前・1日前に送信
 
-// Completion keywords (partial match)
+// 完了と判定するキーワード（部分一致）
 const COMPLETE_WORDS = ['完', '完了', '済', '〆', '終了', '提出済'];
 
-// Stop words — rows with these statuses are skipped
+// リマインドを停止するキーワード（部分一致）
 const STOP_STATUSES = ['停止', 'キャンセル', '中止', '通知停止'];
 
-// Permission role granted to recipients
-CFG.PERMISSION_ROLE = 'editor';  // or 'viewer'
+// 担当者へ付与する権限の種類
+CFG.PERMISSION_ROLE = 'editor';  // または 'viewer'
 ```
 
 ---
 
-## File Structure
+## ファイル構成
 
 ```
 gas-business-automation/
-├── submission-manager.gs   # Main script
+├── submission-manager.gs   # メインスクリプト
 └── README.md
 ```
 
 ---
 
-## Notes
+## 注意事項
 
-- All spreadsheet IDs and personal email addresses have been removed from this repository.
-- Test functions (`testMailOnlyForMe`, `createReminderTestTrigger5min`) are included for development convenience — remove or disable them before deploying to production.
-- This script uses `ScriptProperties` to persist state across trigger executions (managed permissions, reminder logs, completion flags).
+- スプレッドシートID・個人メールアドレスなどのセンシティブな情報は、このリポジトリには含まれていません。`YOUR_***` のプレースホルダーを自分の環境に合わせて置き換えて使用してください。
+- テスト用の関数（`testMailOnlyForMe`、`createReminderTestTrigger5min`）は開発時の確認用です。本番運用前に削除または無効化してください。
+- スクリプトは `ScriptProperties` を使ってトリガー間の状態（権限管理済みアドレス、リマインドログ、完了フラグ）を保持しています。

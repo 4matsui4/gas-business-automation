@@ -1,10 +1,10 @@
 /**** Configuration ****/
 /* Column assignments:
    D  = School name
-   AB = Provisional application / Form 1 completion date (= deadline 1)
-   AC = Contract confirmation / Form 2 completion date (= deadline 2)
-   AD = Provisional application / Form 1 completion status (detected by completion keywords)
-   AE = Contract confirmation / Form 2 completion status (detected by completion keywords)
+   AB = 申込書A 完了日（締切1）
+   AC = 申込書B 完了日（締切2）
+   AD = 申込書A 完了状況（完了語で判定）
+   AE = 申込書B 完了状況（完了語で判定）
    AF = Per-school input sheet URL (submission management book URL)
    AG = Data storage drive URL (parent folder URL)
    AH~AQ = Contact emails (variable number of recipients)
@@ -15,15 +15,15 @@ const CFG = {
 
   // Per-school book common settings
   SCHOOL_TAB_NAME:   '提出管理シート',
-  YOSHIKI1_TAB_NAME: '様式1',
+  FORM_A_TAB_NAME:   '申込書A',
 
   // Master column definitions
   MASTER_COL: {
     SCHOOL:          'D',
-    FORM1_DEADLINE:  'AB',  // Form 1 completion date (= deadline 1)
-    FORM2_DEADLINE:  'AC',  // Form 2 completion date (= deadline 2)
-    STATUS1:         'AD',  // Form 1 completion status
-    STATUS2:         'AE',  // Form 2 completion status
+    FORM1_DEADLINE:  'AB',  // 申込書A 完了日（締切1）
+    FORM2_DEADLINE:  'AC',  // 申込書B 完了日（締切2）
+    STATUS1:         'AD',  // 申込書A 完了状況
+    STATUS2:         'AE',  // 申込書B 完了状況
     SCHOOL_BOOK_URL: 'AF',  // Per-school submission management book URL
     FOLDER_URL:      'AG',  // Parent folder URL
     MAIL_FROM:       'AH',  // Mail TO start (first)
@@ -223,7 +223,7 @@ function onEdit(e) {
   const name = sh.getName(), row = e.range.getRow(), col = e.range.getColumn();
 
   if (name === '編集ログ') return;
-  if (name === CFG.YOSHIKI1_TAB_NAME && (col === 2 || col === 3)) return;
+  if (name === CFG.FORM_A_TAB_NAME && (col === 2 || col === 3)) return;
 
   if (name === '入力シート' && col === 1 && row >= 2) {
     sh.getRange(row, 2).setValue(new Date()); return;
@@ -679,8 +679,8 @@ function dailyReminder_() {
   const PRE_OFFSETS = [4, 1];
 
   const FORMS = [
-    { key: 'form1', name: '仮申込書・様式1', deadlineCol: CFG.MASTER_COL.FORM1_DEADLINE, statusCol: CFG.MASTER_COL.STATUS1, logCol: CFG.MASTER_COL.REMIND_LOG1 },
-    { key: 'form2', name: '契約確認書・様式2', deadlineCol: CFG.MASTER_COL.FORM2_DEADLINE, statusCol: CFG.MASTER_COL.STATUS2, logCol: CFG.MASTER_COL.REMIND_LOG2 }
+    { key: 'form1', name: '申込書A', deadlineCol: CFG.MASTER_COL.FORM1_DEADLINE, statusCol: CFG.MASTER_COL.STATUS1, logCol: CFG.MASTER_COL.REMIND_LOG1 },
+    { key: 'form2', name: '申込書B', deadlineCol: CFG.MASTER_COL.FORM2_DEADLINE, statusCol: CFG.MASTER_COL.STATUS2, logCol: CFG.MASTER_COL.REMIND_LOG2 }
   ];
 
   const PS = PropertiesService.getScriptProperties();
@@ -722,7 +722,7 @@ function dailyReminder_() {
             `標記の件につきまして、進捗状況はいかがでしょうか。<br>` +
             `本メールと行き違いで既にご対応済みの場合は、何卒ご容赦ください。<br>` +
             `未完了の方におかれましては、<b>【${dueYmd}】</b>までに作業をお願いいたします。<br><br>` +
-            `対象様式：${f.name}<br>` +
+            `対象申込書：${f.name}<br>` +
             `締切日：${dueYmd}<br>` +
             `現在の状況：${status || '-'}<br>` +
             `締切まで <b>残り ${diff}日</b> です。<br><br>` +
@@ -808,8 +808,8 @@ function exportOneRowByMaster_(row) {
 function checkCompletionAndNotify_() {
   const sh = getMasterTab_(), last = sh.getLastRow(), props = PropertiesService.getScriptProperties();
 
-  const h1 = sh.getRange(`${CFG.MASTER_COL.STATUS1}1`).getDisplayValue() || '様式1';
-  const h2 = sh.getRange(`${CFG.MASTER_COL.STATUS2}1`).getDisplayValue() || '様式2';
+  const h1 = sh.getRange(`${CFG.MASTER_COL.STATUS1}1`).getDisplayValue() || '申込書A';
+  const h2 = sh.getRange(`${CFG.MASTER_COL.STATUS2}1`).getDisplayValue() || '申込書B';
 
   let sent = 0;
   for (let r = 2; r <= last; r++) {
@@ -835,8 +835,8 @@ function checkCompletionAndNotify_() {
           { type: "section", text: { type: "mrkdwn", text: `✅ *${school}* の記入が完了しました` } },
           { type: "section", text: { type: "mrkdwn", text: `• *${h1}*\n• *${h2}*` } },
           { type: "section", fields: [
-            { type: "mrkdwn", text: `*最終更新（様式1 完了日）*\n${d1 || '-'}` },
-            { type: "mrkdwn", text: `*最終更新（様式2 完了日）*\n${d2 || '-'}` }
+            { type: "mrkdwn", text: `*最終更新（申込書A 完了日）*\n${d1 || '-'}` },
+            { type: "mrkdwn", text: `*最終更新（申込書B 完了日）*\n${d2 || '-'}` }
           ]},
           ...(folderUrl ? [{ type: "section", text: { type: "mrkdwn", text: `<${folderUrl}|格納フォルダ>` } }] : [])
         ]
@@ -1098,11 +1098,11 @@ function sendGrantNotice_(recipients, ctx) {
     `▼管理シート（各校ブック）：${ctx.bookUrl ? `<a href="${ctx.bookUrl}">${ctx.bookUrl}</a>` : '-' }<br>` +
     `<br>` +
     `【締切の目安】<br>` +
-    `・仮申込書・様式1：${ctx.form1DueDisp || '-'}<br>` +
-    `・契約確認書・様式2：${ctx.form2DueDisp || '-'}<br>` +
+    `・申込書A：${ctx.form1DueDisp || '-'}<br>` +
+    `・申込書B：${ctx.form2DueDisp || '-'}<br>` +
     `<br>` +
     `【作業の流れ】<br>` +
-    `1) 管理シートの「ステータス」列をご確認の上、未完了の様式からご対応ください。<br>` +
+    `1) 管理シートの「ステータス」列をご確認の上、未完了の申込書からご対応ください。<br>` +
     `2) 完了後は「完了」へステータスを更新してください（自動判定されます）。<br>` +
     `3) PDFは自動生成/格納されます（時間差あり）。<br>` +
     `<br>` +
@@ -1198,11 +1198,11 @@ function sendGrantMailForRow_(sh, r, opt) {
     `▼管理シート（各校ブック）：${ctx.bookUrl ? `<a href="${ctx.bookUrl}">${ctx.bookUrl}</a>` : '-' }<br>` +
     `<br>` +
     `【締切の目安】<br>` +
-    `・仮申込書・様式1：${ctx.form1DueDisp || '-'}<br>` +
-    `・契約確認書・様式2：${ctx.form2DueDisp || '-'}<br>` +
+    `・申込書A：${ctx.form1DueDisp || '-'}<br>` +
+    `・申込書B：${ctx.form2DueDisp || '-'}<br>` +
     `<br>` +
     `【作業の流れ】<br>` +
-    `1) 管理シートの「ステータス」列をご確認の上、未完了の様式からご対応ください。<br>` +
+    `1) 管理シートの「ステータス」列をご確認の上、未完了の申込書からご対応ください。<br>` +
     `2) 完了後は「完了」へステータスを更新してください（自動判定されます）。<br>` +
     `3) PDFは自動生成/格納されます（時間差あり）。<br>` +
     `<br>` +
@@ -1437,7 +1437,7 @@ function testMailOnlyForMe() {
   const myEmail = 'your-email@example.com'; // Replace with your email address
 
   const school   = 'テスト校';
-  const formName = '契約確認書・様式2';
+  const formName = '申込書B';
   const dueYmd   = '2026-02-28';
   const status   = '未完了';
   const diff     = '3';
@@ -1449,7 +1449,7 @@ function testMailOnlyForMe() {
     `標記の件につきまして、進捗状況はいかがでしょうか。<br>` +
     `本メールと行き違いで既にご対応済みの場合は、何卒ご容赦ください。<br>` +
     `未完了の方におかれましては、<b>【${dueYmd}】</b>までに作業をお願いいたします。<br><br>` +
-    `対象様式：${formName}<br>` +
+    `対象申込書：${formName}<br>` +
     `締切日：${dueYmd}<br>` +
     `現在の状況：${status}<br>` +
     `締切まで <b>残り ${diff}日</b> です。<br><br>` +
